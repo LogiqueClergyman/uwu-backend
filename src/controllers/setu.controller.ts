@@ -16,6 +16,7 @@ export const setuCallback = async (req: Request, res: Response) => {
     const transactions = mockSetuTimelineJson.financialData.transactions || [];
     let detectedRemarkCode = '';
     let matchingIntent: any = null;
+    let relayStarted = false;
 
     try {
         // [DISTRIBUTOR] Fetch all pending intents to cross-reference
@@ -38,10 +39,22 @@ export const setuCallback = async (req: Request, res: Response) => {
         }
 
         if (!matchingIntent) {
+            // Idempotency: if already processed by a previous callback, return the cached result
+            const alreadyDone = await db.select().from(pendingIntents)
+                .where(eq(pendingIntents.isProcessed, true))
+                .limit(1);
+            if (alreadyDone.length > 0 && alreadyDone[0].blockchainTxId) {
+                return res.status(200).json({
+                    status: 'VERIFIED_AND_ANCHORED',
+                    reconciledRemarkCode: alreadyDone[0].paymentRemarkCode,
+                    fullRefId: alreadyDone[0].refId,
+                    blockchainTxId: alreadyDone[0].blockchainTxId
+                });
+            }
             return res.status(404).json({ error: 'Reconciliation Failure: No matching intent found.' });
         }
 
-        // Lock state mutation immediately
+        // Lock state mutation immediately to prevent concurrent double-processing
         await db.update(pendingIntents)
             .set({ isProcessed: true })
             .where(eq(pendingIntents.refId, matchingIntent.refId));
@@ -73,6 +86,9 @@ export const setuCallback = async (req: Request, res: Response) => {
         }
 
         // [RELAYER] Dispatch on-chain
+        // Mark relayStarted so the catch block does NOT roll back isProcessed —
+        // the tx may already be in the ledger, and re-processing would cause replay errors.
+        relayStarted = true;
         const txId = await relayAttestationToAlgorand(
             matchingIntent.refId,
             matchingIntent.contextHash,
@@ -80,6 +96,12 @@ export const setuCallback = async (req: Request, res: Response) => {
             nodeIndices,
             signatures
         );
+
+        console.log(`\n✅ ===== PAYMENT ANCHORED ON ALGORAND =====`);
+        console.log(`   RefID : ${matchingIntent.refId}`);
+        console.log(`   TxID  : ${txId}`);
+        console.log(`   🔗 https://lora.algokit.io/testnet/transaction/${txId}`);
+        console.log(`==========================================\n`);
 
         // Update analytics and final intent state
         const [config] = await db.select().from(apiKeys).where(eq(apiKeys.apiKey, matchingIntent.apiKey)).limit(1);
@@ -101,8 +123,10 @@ export const setuCallback = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        if (matchingIntent) {
-            // Roll back state block if the processing pipeline fails
+        // Only roll back isProcessed if Algorand relay hasn't started yet.
+        // If relay started, the tx may be confirmed on-chain — rolling back would cause
+        // the next callback to replay the same tx, which Algorand will reject as duplicate.
+        if (matchingIntent && !relayStarted) {
             await db.update(pendingIntents)
                 .set({ isProcessed: false })
                 .where(eq(pendingIntents.refId, matchingIntent.refId));

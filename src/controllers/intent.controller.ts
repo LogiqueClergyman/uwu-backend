@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { verifyClientSignature } from '../services/crypto.service';
 
+import algosdk from 'algosdk';
+
 export const createIntent = async (req: AuthenticatedRequest, res: Response) => {
     try {
         const config = req.platformConfig!;
@@ -24,22 +26,26 @@ export const createIntent = async (req: AuthenticatedRequest, res: Response) => 
         const shortRefId = fullHash.substring(0, 16).toUpperCase();
 
         const defaultHash = Buffer.alloc(32, 0).toString('hex');
-        const defaultAddr = Buffer.alloc(32, 0).toString('hex');
+        const defaultAddr = algosdk.encodeAddress(new Uint8Array(32));
 
-        await db.insert(pendingIntents).values({
-            refId: fullHash,
-            apiKey: config.apiKey,
-            paymentRemarkCode: shortRefId,
-            invoiceOrRoute: intentBlock.invoiceOrRoute,
-            amountPaise: intentBlock.amountPaise,
-            contextHash: intentBlock.contextHash || defaultHash,
-            userAddress: intentBlock.userAddress || defaultAddr,
-            isProcessed: false
-        });
+        // Check for idempotency (React strict mode or network retries)
+        const [existing] = await db.select().from(pendingIntents).where(eq(pendingIntents.refId, fullHash)).limit(1);
+        if (!existing) {
+            await db.insert(pendingIntents).values({
+                refId: fullHash,
+                apiKey: config.apiKey,
+                paymentRemarkCode: shortRefId,
+                invoiceOrRoute: intentBlock.invoiceOrRoute,
+                amountPaise: intentBlock.amountPaise,
+                contextHash: intentBlock.contextHash || defaultHash,
+                userAddress: intentBlock.userAddress || defaultAddr,
+                isProcessed: false
+            });
 
-        await db.update(apiKeys)
-            .set({ usageCount: config.usageCount + 1 })
-            .where(eq(apiKeys.apiKey, config.apiKey));
+            await db.update(apiKeys)
+                .set({ usageCount: config.usageCount + 1 })
+                .where(eq(apiKeys.apiKey, config.apiKey));
+        }
 
         return res.status(200).json({
             status: 'ACKNOWLEDGED',

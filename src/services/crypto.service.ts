@@ -19,6 +19,8 @@ export function verifyClientSignature(
     }
 }
 
+import algosdk from 'algosdk';
+
 /**
  * Simulates a Verifier Node (DVN) signing an attestation fact.
  * The message MUST exactly match the AVM concatenation in the smart contract:
@@ -27,13 +29,15 @@ export function verifyClientSignature(
 export function signAttestation(
     refIdHex: string,
     contextHashHex: string,
-    userAddressHex: string,
+    userAddressBase32: string,
     privateKeyUint8Array: Uint8Array
 ): Uint8Array {
+    const userAddressBytes = algosdk.decodeAddress(userAddressBase32).publicKey;
+    
     const message = Buffer.concat([
         Buffer.from(refIdHex, 'hex'),
         Buffer.from(contextHashHex, 'hex'),
-        Buffer.from(userAddressHex, 'hex')
+        Buffer.from(userAddressBytes)
     ]);
 
     return nacl.sign.detached(new Uint8Array(message), privateKeyUint8Array);
