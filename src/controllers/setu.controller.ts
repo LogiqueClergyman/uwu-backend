@@ -81,13 +81,17 @@ export const setuCallback = async (req: Request, res: Response) => {
             signatures
         );
 
-        // Update analytics
+        // Update analytics and final intent state
         const [config] = await db.select().from(apiKeys).where(eq(apiKeys.apiKey, matchingIntent.apiKey)).limit(1);
         if (config) {
             await db.update(apiKeys)
                 .set({ successCount: config.successCount + 1 })
                 .where(eq(apiKeys.apiKey, config.apiKey));
         }
+
+        await db.update(pendingIntents)
+            .set({ blockchainTxId: txId })
+            .where(eq(pendingIntents.refId, matchingIntent.refId));
 
         return res.status(200).json({
             status: 'VERIFIED_AND_ANCHORED',

@@ -24,5 +24,6 @@ export const pendingIntents = pgTable("pending_intents", {
     contextHash: varchar("context_hash", { length: 64 }).notNull(),
     userAddress: varchar("user_address", { length: 64 }).notNull(),
     isProcessed: boolean("is_processed").default(false).notNull(),
+    blockchainTxId: varchar("blockchain_tx_id", { length: 255 }),
     createdAt: timestamp("created_at").defaultNow().notNull()
 });

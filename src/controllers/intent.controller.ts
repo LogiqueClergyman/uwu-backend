@@ -55,3 +55,28 @@ export const createIntent = async (req: AuthenticatedRequest, res: Response) => 
         return res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+export const getIntentStatus = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { refId } = req.params;
+        if (!refId) return res.status(400).json({ error: 'refId required' });
+
+        const [intent] = await db.select().from(pendingIntents).where(eq(pendingIntents.refId, refId)).limit(1);
+
+        if (!intent) {
+            return res.status(404).json({ error: 'Intent not found' });
+        }
+
+        if (intent.isProcessed && intent.blockchainTxId) {
+            return res.status(200).json({
+                status: 'PROCESSED',
+                blockchainTxId: intent.blockchainTxId
+            });
+        }
+
+        return res.status(200).json({ status: 'PENDING' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
