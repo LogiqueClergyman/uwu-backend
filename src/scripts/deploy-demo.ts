@@ -23,13 +23,20 @@ async function deploy() {
     const factory = algorand.client.getTypedAppFactory(UwUPolymorphicRegistryFactory, {
         defaultSender: deployer.addr,
     });
-    const { appClient } = await factory.deploy({ onUpdate: 'append', onSchemaBreak: 'append' });
+    const { appClient } = await factory.deploy({ 
+        onUpdate: 'append', 
+        onSchemaBreak: 'append',
+        createParams: {
+            method: 'createApplication',
+            args: []
+        }
+    });
     const appId = Number(appClient.appId);
     console.log(`Deployed! App ID: ${appId}`);
 
     console.log("Funding contract for box storage...");
     await algorand.send.payment({
-        amount: (1).algo(),
+        amount: (2).algo(),
         sender: deployer.addr,
         receiver: appClient.appAddress,
     });
