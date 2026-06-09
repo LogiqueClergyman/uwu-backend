@@ -36,7 +36,7 @@ async function deploy() {
 
     console.log("Funding contract for box storage...");
     await algorand.send.payment({
-        amount: (2).algo(),
+        amount: (0.5).algo(),
         sender: deployer.addr,
         receiver: appClient.appAddress,
     });
