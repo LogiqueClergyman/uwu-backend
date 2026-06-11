@@ -10,6 +10,9 @@ export const apiKeys = pgTable("api_keys", {
     apiKey: text("api_key").primaryKey(), // The Ed25519 public key (Base64)
     platformName: varchar("platform_name", { length: 255 }).notNull(),
     setuApiKey: varchar("setu_api_key", { length: 255 }).notNull(),
+    ownerEmail: varchar("owner_email", { length: 255 }), // links the key to the dashboard user
+    env: varchar("env", { length: 8 }).default("live").notNull(), // live | test
+    revoked: boolean("revoked").default(false).notNull(),
     usageCount: integer("usage_count").default(0).notNull(),
     successCount: integer("success_count").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull()

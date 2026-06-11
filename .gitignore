@@ -1,4 +1,18 @@
+# build output
 dist
+
+# test coverage
+coverage
+
+# deps
 node_modules
-package-lock.json
+
+# env — keep the placeholder template, ignore real secrets
 .env
+.env.local
+.env.*.local
+!.env.example
+
+# misc
+*.log
+.DS_Store

@@ -1,4 +1,5 @@
 import nacl from 'tweetnacl';
+import { log } from './logger';
 
 /**
  * Verifies the Client SDK's Ed25519 signature over an Intent payload.
@@ -35,6 +36,7 @@ export function signAttestation(
         Buffer.from(contextHashHex, 'hex'),
         Buffer.from(userAddressHex, 'hex')
     ]);
+    log.debug('SIGN', 'Signing attestation (refId||contextHash||userAddress)', { refId: refIdHex });
 
     return nacl.sign.detached(new Uint8Array(message), privateKeyUint8Array);
 }

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UwU Backend · Activity Log</title>
+<style>
+  :root{
+    --bg:#0e0d12; --bg2:#16151c; --hair:#26242f; --fg:#e7e4ef; --fg2:#9b97a8; --fg3:#6c6878;
+    --BOOT:#52d1dc; --HTTP:#7c7890; --AUTH:#c98bff; --KEYS:#6ba8ff; --INTENT:#f2c14e;
+    --SIGN:#e08bff; --SETU:#5fd38a; --CHAIN:#52d1dc; --DB:#8a8698;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:12.5px;line-height:1.5}
+  header{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:12px 18px;background:rgba(14,13,18,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--hair)}
+  .brand{font-weight:700;letter-spacing:-.01em;font-size:14px}
+  .brand .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--SETU);margin-right:8px;
+    box-shadow:0 0 0 3px rgba(95,211,138,.16);animation:p 1.8s ease-in-out infinite}
+  @keyframes p{50%{opacity:.4}}
+  .spacer{flex:1}
+  select,button{font-family:var(--mono);font-size:12px;background:var(--bg2);color:var(--fg);
+    border:1px solid var(--hair);border-radius:7px;padding:6px 10px;cursor:pointer}
+  button:hover,select:hover{border-color:#3a3848}
+  label.chk{display:inline-flex;align-items:center;gap:6px;color:var(--fg2);cursor:pointer}
+  main{padding:14px 18px 60px}
+  .row{display:grid;grid-template-columns:96px 70px 18px 1fr;gap:10px;padding:3px 0;align-items:start}
+  .row:hover{background:rgba(255,255,255,.02)}
+  .time{color:var(--fg3)}
+  .cat{font-weight:700}
+  .mark{text-align:center}
+  .msg{white-space:pre-wrap;word-break:break-word}
+  .data{color:var(--fg3);grid-column:4}
+  .lvl-error .msg{color:#ff8089}
+  .lvl-warn .msg{color:#f2c14e}
+  .lvl-success .msg{color:#5fd38a}
+  .empty{color:var(--fg3);padding:40px 0;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><span class="dot"></span>UwU Backend · Activity</span>
+  <select id="cat">
+    <option value="">All categories</option>
+    <option>BOOT</option><option>HTTP</option><option>AUTH</option><option>KEYS</option>
+    <option>INTENT</option><option>SIGN</option><option>SETU</option><option>CHAIN</option><option>DB</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="auto" checked /> auto-refresh</label>
+  <span class="spacer"></span>
+  <span id="meta" style="color:var(--fg3)"></span>
+  <button id="clear">Clear</button>
+</header>
+<main><div id="feed"><div class="empty">Waiting for activity…</div></div></main>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const COLORS = { BOOT:'--BOOT',HTTP:'--HTTP',AUTH:'--AUTH',KEYS:'--KEYS',INTENT:'--INTENT',SIGN:'--SIGN',SETU:'--SETU',CHAIN:'--CHAIN',DB:'--DB' };
+  const MARK = { info:'·', success:'✓', warn:'!', error:'✗', debug:'·' };
+  const esc = s => String(s ?? '').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  async function tick(){
+    try{
+      const cat = $('#cat').value;
+      const r = await fetch('/api/v1/logs?limit=400' + (cat?'&category='+cat:''));
+      const d = await r.json();
+      const feed = $('#feed');
+      if(!d.logs.length){ feed.innerHTML = '<div class="empty">No activity yet for this filter.</div>'; $('#meta').textContent=''; return; }
+      feed.innerHTML = d.logs.map(e => {
+        const col = `var(${COLORS[e.category]||'--HTTP'})`;
+        const data = e.data!==undefined ? `<div class="data">${esc(typeof e.data==='string'?e.data:JSON.stringify(e.data))}</div>` : '';
+        return `<div class="row lvl-${e.level}">
+          <span class="time">${esc(e.ts.slice(11,23))}</span>
+          <span class="cat" style="color:${col}">[${esc(e.category)}]</span>
+          <span class="mark" style="color:${col}">${MARK[e.level]||'·'}</span>
+          <span class="msg">${esc(e.message)}</span>${data}
+        </div>`;
+      }).join('');
+      $('#meta').textContent = d.count + ' events';
+      window.scrollTo(0, document.body.scrollHeight);
+    }catch{ $('#meta').textContent = 'backend offline'; }
+  }
+
+  $('#clear').onclick = async () => { await fetch('/api/v1/logs/clear',{method:'POST'}); tick(); };
+  $('#cat').onchange = tick;
+  setInterval(() => { if($('#auto').checked) tick(); }, 1500);
+  tick();
+</script>
+</body>
+</html>
